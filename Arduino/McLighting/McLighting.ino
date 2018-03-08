@@ -85,14 +85,12 @@ String readEEPROM(int offset, int len) {
     res += char(EEPROM.read(i + offset));
     //DBG_OUTPUT_PORT.println(char(EEPROM.read(i + offset)));
   }
-  
-  //DBG_OUTPUT_PORT.print("Read EEPROM: [");
-  //DBG_OUTPUT_PORT.print(res); 
-  //DBG_OUTPUT_PORT.println("]");
+  DBG_OUTPUT_PORT.printf("readEEPROM(): %s\n", res.c_str());
   return res;
 }
 
 void writeEEPROM(int offset, int len, String value) {
+  DBG_OUTPUT_PORT.printf("writeEEPROM(): %s\n", value.c_str());
   for (int i = 0; i < len; ++i)
   {
     if (i < value.length()) {
@@ -100,10 +98,29 @@ void writeEEPROM(int offset, int len, String value) {
     } else {
       EEPROM.write(i + offset, NULL);
     }
-    
-    DBG_OUTPUT_PORT.print("Wrote EEPROM: ");
-    DBG_OUTPUT_PORT.println(value[i]); 
   }
+}
+
+
+// ***************************************************************************
+// Saved state handling
+// ***************************************************************************
+// https://stackoverflow.com/questions/9072320/split-string-into-string-array
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length()-1;
+
+  for(int i=0; i<=maxIndex && found<=index; i++){
+    if(data.charAt(i)==separator || i==maxIndex){
+        found++;
+        strIndex[0] = strIndex[1]+1;
+        strIndex[1] = (i == maxIndex) ? i+1 : i;
+    }
+  }
+
+  return found>index ? data.substring(strIndex[0], strIndex[1]) : "";
 }
 
 
@@ -158,15 +175,21 @@ void setup() {
 
   // set builtin led pin as output
   pinMode(BUILTIN_LED, OUTPUT);
+  // button pin setup
+#ifdef ENABLE_BUTTON
+  pinMode(BUTTON,INPUT_PULLUP);
+#endif
   // start ticker with 0.5 because we start in AP mode and try to connect
   ticker.attach(0.5, tick);
+
+  wifi_station_set_hostname(const_cast<char*>(HOSTNAME));
 
   // ***************************************************************************
   // Setup: Neopixel
   // ***************************************************************************
   strip.init();
-  strip.setBrightness(brightness);
-  strip.setSpeed(ws2812fx_speed);
+  strip.setBrightness(brightness); 
+  strip.setSpeed(convertSpeed(ws2812fx_speed));
   //strip.setMode(FX_MODE_RAINBOW_CYCLE);
   strip.setColor(main_color.red, main_color.green, main_color.blue);
   strip.start();
@@ -300,8 +323,8 @@ void setup() {
   // ***************************************************************************
   #ifdef ENABLE_MQTT
     if (mqtt_host != "" && String(mqtt_port).toInt() > 0) {
-      String(String(HOSTNAME) + "/in").toCharArray(mqtt_intopic, strlen(HOSTNAME) + 4);
-      String(String(HOSTNAME) + "/out").toCharArray(mqtt_outtopic, strlen(HOSTNAME) + 5);
+      snprintf(mqtt_intopic, sizeof mqtt_intopic, "%s/in", HOSTNAME);
+      snprintf(mqtt_outtopic, sizeof mqtt_outtopic, "%s/out", HOSTNAME);
   
       DBG_OUTPUT_PORT.printf("MQTT active: %s:%d\n", mqtt_host, String(mqtt_port).toInt());
       
@@ -314,7 +337,8 @@ void setup() {
   // ***************************************************************************
   // Setup: MDNS responder
   // ***************************************************************************
-  MDNS.begin(HOSTNAME);
+  bool mdns_result = MDNS.begin(HOSTNAME);
+
   DBG_OUTPUT_PORT.print("Open http://");
   DBG_OUTPUT_PORT.print(WiFi.localIP());
   DBG_OUTPUT_PORT.println("/ to open McLighting.");
@@ -376,8 +400,8 @@ void setup() {
   server.on("/esp_status", HTTP_GET, []() {
     String json = "{";
     json += "\"heap\":" + String(ESP.getFreeHeap());
-    json += ", \"analog\":" + String(analogRead(A0));
-    json += ", \"gpio\":" + String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
+    // json += ", \"analog\":" + String(analogRead(A0));
+    // json += ", \"gpio\":" + String((uint32_t)(((GPI | GPO) & 0xFFFF) | ((GP16I & 0x01) << 16)));
     json += "}";
     server.send(200, "text/json", json);
     json = String();
@@ -444,6 +468,23 @@ void setup() {
     server.send(200, "text/plain", str_brightness );
     DBG_OUTPUT_PORT.print("/get_brightness: ");
     DBG_OUTPUT_PORT.println(str_brightness);
+  });
+  
+  server.on("/set_speed", []() {
+    if (server.arg("d").toInt() >= 0) {
+      ws2812fx_speed = server.arg("d").toInt();
+      ws2812fx_speed = constrain(ws2812fx_speed, 0, 255);
+      strip.setSpeed(convertSpeed(ws2812fx_speed));
+    }
+    
+    getStatusJSON();
+  });
+
+  server.on("/get_speed", []() {
+    String str_speed = String(ws2812fx_speed);
+    server.send(200, "text/plain", str_speed );
+    DBG_OUTPUT_PORT.print("/get_speed: ");
+    DBG_OUTPUT_PORT.println(str_speed);
   });
 
   server.on("/get_switch", []() {
@@ -529,10 +570,29 @@ void setup() {
   });
 
   server.begin();
+
+  // Start MDNS service
+  if (mdns_result) {
+    MDNS.addService("http", "tcp", 80);
+  }
+
+  #ifdef ENABLE_STATE_SAVE
+    // Load state string from EEPROM
+    String saved_state_string = readEEPROM(256, 32);
+    String chk = getValue(saved_state_string, '|', 0);
+    if (chk == "STA") {
+      DBG_OUTPUT_PORT.printf("Found saved state: %s\n", saved_state_string.c_str());
+      setModeByStateString(saved_state_string);
+    }
+    sprintf(last_state, "STA|%2d|%3d|%3d|%3d|%3d|%3d|%3d", mode, ws2812fx_mode, ws2812fx_speed, brightness, main_color.red, main_color.green, main_color.blue);
+  #endif
 }
 
 
 void loop() {
+  #ifdef ENABLE_BUTTON
+    button();
+  #endif  
   server.handleClient();
   webSocket.loop();
   
@@ -584,6 +644,11 @@ void loop() {
     strip.setMode(FX_MODE_THEATER_CHASE);
     mode = HOLD;
   }
+  if (mode == TWINKLERANDOM) {
+    strip.setColor(main_color.red, main_color.green, main_color.blue);
+    strip.setMode(FX_MODE_TWINKLE_RANDOM);
+    mode = HOLD;
+  }
   if (mode == THEATERCHASERAINBOW) {
     strip.setMode(FX_MODE_THEATER_CHASE_RAINBOW);
     mode = HOLD;
@@ -601,4 +666,23 @@ void loop() {
   if (mode != TV && mode != CUSTOM) {
     strip.service();
   }
+
+
+  #ifdef ENABLE_STATE_SAVE
+    // Check for state changes
+    sprintf(current_state, "STA|%2d|%3d|%3d|%3d|%3d|%3d|%3d", mode, strip.getMode(), ws2812fx_speed, brightness, main_color.red, main_color.green, main_color.blue);
+  
+    if (strcmp(current_state, last_state) != 0) {
+      // DBG_OUTPUT_PORT.printf("STATE CHANGED: %s / %s\n", last_state, current_state);
+      strcpy(last_state, current_state);
+      time_statechange = millis();
+      state_save_requested = true;
+    }
+    if (state_save_requested && time_statechange + timeout_statechange_save <= millis()) {
+      time_statechange = 0;
+      state_save_requested = false;
+      writeEEPROM(256, 32, last_state); // 256 --> last_state (reserved 32 bytes)
+      EEPROM.commit();
+    }
+  #endif
 }

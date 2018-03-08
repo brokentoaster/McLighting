@@ -97,7 +97,3 @@ void tv() {
 		strip.show();
 	}
 }
-
-
-
-

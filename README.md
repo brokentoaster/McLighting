@@ -7,6 +7,29 @@
 > Because of it's open architecture and APIs it's easy to build new clients for different platforms (iOS, Android, Windows Universal Apps, Siri/Cortana integration, ...). 
 
 ___
+Update 17.02.2018:
+User @debsahu contributed code for integration with homeassistant. It's currently in a separate branch (https://github.com/toblum/McLighting/tree/feature/ha_integration). If you're using Homeassistant, please try it out and give feedback.
+User @FabLab-Luenn created a version of McLighting (https://github.com/FabLab-Luenen/McLighting) for 6812 and other RGBW strips. Give it a try, if you own such strips.
+A thank you goes to all contributors.
+
+Update 31.01.2018:
+User @codmpm did a very professional McLighting installation and even designed his own PCBs. He has a great writeup for his project at: https://allgeek.de/2018/01/29/esp8266-neopixel-controller/ (in german).
+
+Update 27.01.2018:
+Many people asked if it's possible to connect more than one strip (currently not) or at least "sync" multiple McLighting nodes. Although it may be possible to connect more then one WS2812 strip to the same data pin (works in many cases, you just have to try), syncing many McLighting instances would be a benefit. This could easily be achieved done by software like [NodeRed](https://nodered.org/). I added a example flow to demonstrate that [here](https://github.com/toblum/McLighting/blob/master/clients/node_red/websocket_proxy.json). Have a look at the short video [here](https://youtu.be/g3CHtG9c520).
+
+Update 21.01.2018:
+User @szepnorbee contributed code for button control. Thank you! It's merged into the master branch now. There is a short manual for configuration [here](https://github.com/toblum/McLighting/wiki/Button-control).
+
+Update 06.01.2018:
+After som etesting I merged the "feature/save_state" banch into master, so everybody should now be able to use this new functionality. Basically McLighting now saves the current mode to EEPROM and restores the setting on reboot. So you wont need to select your favorite mode again. If you don't want to use this, you can disable it in definitions.h.  
+~~Some people noticed that there are currently problems compiling McLighting whe using ESP8266 core in version 2.4.0. This is due to a [problem](https://github.com/kitesurfer1404/WS2812FX/issues/58) with WS2812FX when using this version. For the moment you can stick to the 2.4.0 RC2 (also easily available via the boards manager).~~ (fixed now )  
+Funny! McLighting was featured in the german radio show ["Netzbasteln"](https://www.deutschlandfunknova.de/beitrag/netzbasteln-wolkenlampe-mit-cloud-anschluss) on Deutschlandfunk Nova with a nice audio tutorial.
+
+Update 16.12.2017:
+There was a breaking change in the WS2812FX library: Speeds have a new format (65535-0 instead of 0-255). I released a new version that converts the speeds settings. Please use the latest [WS2812FX library](https://github.com/kitesurfer1404/WS2812FX) (14.12.2017 or later) if use have an existing version installed.
+I got many messages from people who use McLighting for own projects. User Brian Lough built a lighting system for his wedding and made a nice instruction video for his build: https://goo.gl/NbfKi8
+
 Update 30.09.2017:
 Thanks to [@moose4lord](https://github.com/moose4lord) Mclighting works with the newest version of WS1812FX and has a possibility to define autocycle patterns [Wiki](https://github.com/toblum/McLighting/wiki/Autocycling). Thank for contributing to McLighting everyone!
 I was also informed of a new project that is loosely based on McLighting: [Responsive_LED_Control](https://github.com/doctormord/Responsive_LED_Control) That looks very promising.
@@ -87,8 +110,12 @@ I hope I didn't miss any sources and mentioned every author. In case I forgot so
 
 ## Todos
 - [x] MQTT support
-- [ ] Support multiple strips and control them separatley or together
+- [ ] Support multiple strips and control them separately or together
 - [ ] Save favourite effects? [Issue](https://github.com/toblum/McLighting/issues/35)
+- [ ] Make number of pixels, MQTT and PIN configurable via front end [Issue](https://github.com/toblum/McLighting/issues/93) and [Issue](https://github.com/toblum/McLighting/issues/101)
+- [ ] OTA update [Issue](https://github.com/toblum/McLighting/issues/93)
+- [ ] Bundle webpages instead of SPIFFS [Issue](https://github.com/toblum/McLighting/issues/93)
+- [ ] Remove old / wrong EEPROM settings completely (https://github.com/toblum/McLighting/issues/92)
 - [x] Fix issue with websockets connection problems
 - [ ] Add support for 433MHz wireless socket using the [RC switch](https://github.com/sui77/rc-switch) library.
 - [ ] Switch to the [NeoPixelBus library](https://github.com/Makuna/NeoPixelBus/wiki)
@@ -98,8 +125,12 @@ I hope I didn't miss any sources and mentioned every author. In case I forgot so
 - [x] RGBW mode [Issue](https://github.com/toblum/McLighting/issues/24)
 - [x] Add called command to response [Issue](https://github.com/toblum/McLighting/issues/19)
 - [ ] Customer profile to define segments of (in)active areas on the strip [Issue](https://github.com/toblum/McLighting/issues/37)
-- [ ] Button control [Issue](https://github.com/toblum/McLighting/issues/36)
+- [x] Button control [Issue](https://github.com/toblum/McLighting/issues/36)
+- [x] Retain last state [Issue](https://github.com/toblum/McLighting/issues/47)
 - [ ] Additional clients
+- [ ] If no wifi, at least enable button mode. [Issue](https://github.com/toblum/McLighting/issues/88)
+- [ ] Also enable McLighting in Wifi AP mode.
+- [ ] Make a set of NodeRed nodes.
 
 
 ## Licence
